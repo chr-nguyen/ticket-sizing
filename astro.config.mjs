@@ -5,6 +5,21 @@ import react from '@astrojs/react';
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [react()],
+  integrations: [
+    react({
+      babel: {
+        plugins: [
+          [
+            'babel-plugin-styled-components',
+            {
+              ssr: true,
+              displayName: true,
+            },
+          ],
+        ],
+      },
+      experimentalDisableStreaming: true,
+    })
+  ],
   base:'/ticket-sizing/'
 });
