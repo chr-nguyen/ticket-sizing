@@ -46,7 +46,8 @@ export const createNewMember = async (memberName: string) => {
       memberName,
       under: 0,
       over: 0,
-      rank: 0
+      rank: 0,
+      theme: 'dark' // Default theme
     };
 
     const docRef = await addDoc(memberRef, memberData);
@@ -55,6 +56,22 @@ export const createNewMember = async (memberName: string) => {
     return docRef.id;
   } catch (error) {
     console.error("Error creating new member: ", error);
+    throw error;
+  }
+};
+
+/**
+ * Updates the member's theme preference.
+ */
+export const updateMemberTheme = async (memberId: string, theme: 'light' | 'dark') => {
+  try {
+    const memberDocRef = doc(db, "members", memberId);
+    await updateDoc(memberDocRef, {
+      theme: theme
+    });
+    console.log(`Member ${memberId} theme updated to ${theme}`);
+  } catch (error) {
+    console.error("Error updating member theme: ", error);
     throw error;
   }
 };

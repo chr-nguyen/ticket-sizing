@@ -11,28 +11,58 @@ import {
   usePokerShowCardsState,
   removeAllPlayers,
   updateMemberName,
+  updateMemberTheme,
   updatePlayerNameByMemberId,
   useAllMembers,
   setRoomHost,
 } from "../firebase/firebase.ts"
-import styled from "styled-components";
+import styled, { ThemeProvider } from "styled-components";
 
-// --- STYLES ---
+// --- THEMES ---
+const darkTheme = {
+  background: 'darkblue',
+  text: 'magenta',
+  border: 'magenta',
+  cardBg: 'darkblue', // Or slightly lighter
+  accent: 'magenta',
+  white: 'white',
+  buttonBg: 'darkblue',
+  buttonText: 'magenta',
+  buttonHoverBg: 'magenta',
+  buttonHoverText: 'darkblue'
+};
+
+const lightTheme = {
+  background: '#f0f2f5',
+  text: '#6200ea', // Deep Purple
+  border: '#6200ea',
+  cardBg: 'white',
+  accent: '#6200ea',
+  white: '#333', // Text color replacement
+  buttonBg: 'white',
+  buttonText: '#6200ea',
+  buttonHoverBg: '#6200ea',
+  buttonHoverText: 'white'
+};
+
+// --- STYLED COMPONENTS (Refactored) ---
 const LeaderboardContainer = styled.div`
   margin-top: 3rem;
-  border: 1px solid magenta;
+  border: 1px solid ${props => props.theme.border};
   padding: 1rem;
   width: 100%;
-  max-width: 400px;
-  background-color: darkblue;
-  color: magenta;
+  min-width: 300px;
+  background-color: ${props => props.theme.cardBg};
+  color: ${props => props.theme.text};
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
 `;
 
 const RankRow = styled.div`
   display: flex;
   justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid magenta;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid ${props => props.theme.border};
   &:last-child {
     border-bottom: none;
   }
@@ -41,13 +71,15 @@ const RankRow = styled.div`
 const EditButton = styled.button`
   background: transparent;
   border: none;
-  color: magenta;
+  color: ${props => props.theme.text};
+  opacity: 0.7;
   cursor: pointer;
   margin-left: 1rem;
-  font-size: 1rem; 
+  font-size: 0.8rem; 
   text-decoration: underline;
   &:hover {
-    color: white;
+    opacity: 1;
+    color: ${props => props.theme.accent};
   }
 `;
 
@@ -56,7 +88,8 @@ interface memberProps {
   memberName: string,
   over: number,
   under: number,
-  rank: number
+  rank: number,
+  theme?: 'light' | 'dark'
 }
 
 const Container = styled.div`
@@ -65,7 +98,24 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-`
+  /* Global body background fix or just container? 
+     Ideally body should change, but let's stick to container or use a wrapper */
+  /* We'll assume this container is the main app view */
+`;
+
+const AppWrapper = styled.div`
+  min-height: 100vh;
+  width: 100vw;
+  background-color: ${props => props.theme.background};
+  color: ${props => props.theme.text};
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; // Better font
+  transition: all 0.3s ease;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+`;
 
 const Players = styled.div`
   display: flex;
@@ -74,108 +124,144 @@ const Players = styled.div`
 `;
 
 const SelectPlayer = styled.button`
-  border: 1px solid magenta;
-  background-color: darkblue;
+  border: 1px solid ${props => props.theme.border};
+  background-color: ${props => props.theme.buttonBg};
   padding: 1rem;
-  color: magenta;
+  color: ${props => props.theme.buttonText};
   margin: 0.5rem;
-  width: 6rem;
+  width: 8rem; // Slightly wider
   cursor: pointer;
-  &: hover {
-    background-color: magenta;
-    color: darkblue;
+  border-radius: 8px; // Rounded corners
+  transition: all 0.2s;
+  font-weight: bold;
+  
+  &:hover {
+    background-color: ${props => props.theme.buttonHoverBg};
+    color: ${props => props.theme.buttonHoverText};
+    transform: translateY(-2px); // Lift effect
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
   }
 `;
 
 const InputBox = styled.div`
   margin-top: 2rem;
-  color: white;
+  color: ${props => props.theme.text};
   display: flex;
   flex-direction: column;
   align-items: center;
   input {
-    border: 1px solid magenta;
-    color: white;
-    background-color: darkblue;
+    border: 1px solid ${props => props.theme.border};
+    color: ${props => props.theme.text};
+    background-color: ${props => props.theme.cardBg};
     padding: 1rem;
+    border-radius: 8px;
   }
   button {
     margin-top: 1rem;
-    border: 1px solid magenta;
-    background-color: darkblue;
+    border: 1px solid ${props => props.theme.border};
+    background-color: ${props => props.theme.buttonBg};
     padding: 1rem;
-    color: magenta;
+    color: ${props => props.theme.buttonText};
     cursor: pointer;
-    &: hover {
-      background-color: magenta;
-      color: darkblue;
+    border-radius: 8px;
+    font-weight: bold;
+    &:hover {
+      background-color: ${props => props.theme.buttonHoverBg};
+      color: ${props => props.theme.buttonHoverText};
     }
   }
 `;
 
 const CardsTable = styled.div`
   display:flex;
-  justify-content: space-between;
+  justify-content: center; // Center cards
+  gap: 2rem; // Space between
+  flex-wrap: wrap; 
+  margin-top: 2rem;
 `;
 
 const CardWrapper = styled.div`
   display:flex;
   flex-direction: column;
   align-items: center;
-  color: magenta;
+  color: ${props => props.theme.text};
 `;
 
 const Card = styled.div`
   height: 6rem;
   width: 4rem;
-  border: 1px solid magenta;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 1rem;
-  margin: 1rem;
+  margin-top: 0.5rem;
   display: flex;
   justify-content: center;
   align-items: center;
   font-size: 3rem;
-  background-color: ${props => props.picked ? "magenta" : "darkblue"};
-  color: ${props => props.picked ? "darkblue" : "magenta"};
+  background-color: ${props => props.picked ? props.theme.accent : props.theme.cardBg};
+  color: ${props => props.picked ? props.theme.buttonHoverText : props.theme.text};
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  transition: all 0.3s;
 `;
 
 const SizeSelection = styled.div`
   display:flex;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 1rem;
   margin-top: 3rem;
 `;
 
 const SizeCard = styled.button`
   height: 4rem;
   width: 3rem;
-  border: 1px solid magenta;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 0.5rem;
-  margin: 1rem;
   transition: 0.25s;
   cursor: pointer;
   display:flex;
   justify-content: center;
   align-items: center;
-  color: ${props => props.picked ? "darkblue" : "magenta"};
-  background-color: ${props => props.picked ? "magenta" : "darkblue"};
+  font-weight: bold;
+  
+  color: ${props => props.picked ? props.theme.buttonHoverText : props.theme.text};
+  background-color: ${props => props.picked ? props.theme.accent : props.theme.buttonBg};
+  
   &:hover{
-    background-color: magenta;
-    color: darkblue;
+    background-color: ${props => props.theme.accent};
+    color: ${props => props.theme.buttonHoverText};
+    transform: scale(1.1);
   }
-  margin-top: ${props => props.picked ? "-0.1rem" : "1rem"}
+  margin-top: ${props => props.picked ? "-0.5rem" : "0"}; // smoother lift
 `;
 
 const RevealCards = styled.button`
   margin-bottom: 1rem;
-  border: 1px solid magenta;
-  background-color: darkblue;
+  border: 1px solid ${props => props.theme.border};
+  background-color: ${props => props.theme.buttonBg};
   padding: 1rem;
-  color: magenta;
+  color: ${props => props.theme.buttonText};
   cursor: pointer;
-  &: hover {
-    background-color: magenta;
-    color: darkblue;
+  border-radius: 8px;
+  font-weight: bold;
+  &:hover {
+    background-color: ${props => props.theme.buttonHoverBg};
+    color: ${props => props.theme.buttonHoverText};
   }
+`;
+
+const ThemeToggleBtn = styled.button`
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: transparent;
+    border: 1px solid ${props => props.theme.border};
+    color: ${props => props.theme.text};
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    cursor: pointer;
+    &:hover {
+        background-color: ${props => props.theme.buttonHoverBg};
+        color: ${props => props.theme.buttonHoverText};
+    }
 `;
 
 export const Sizing = () => {
@@ -304,121 +390,150 @@ export const Sizing = () => {
     }
   }
 
+  // --- THEME LOGIC ---
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('dark');
+
+  const toggleTheme = async () => {
+    const newTheme = themeMode === 'light' ? 'dark' : 'light';
+    setThemeMode(newTheme);
+    // Persist if logged in
+    if (player.memberId) {
+      await updateMemberTheme(player.memberId, newTheme);
+    }
+  }
+
+  // Load user theme preference when they select their user
+  useEffect(() => {
+    if (player.memberId) {
+      const member = members.find(m => m.id === player.memberId);
+      if (member && member.theme) {
+        setThemeMode(member.theme);
+      }
+    }
+  }, [player.memberId, members]);
+
   return (
-    <Container>
-      {mode === 'user' && (
-        <>
-          <div style={{ color: 'magenta', marginBottom: '1rem' }}>
-            <label style={{ opacity: hostId ? 0.5 : 1 }}>
-              <input
-                type="checkbox"
-                checked={joinAsHost}
-                disabled={!!hostId} // Disable if hostId is truthy
-                onChange={(e) => setJoinAsHost(e.target.checked)}
-              />
-              {hostId ? " Host Already Active" : " Join as Host?"}
-            </label>
-          </div>
-          <Players>
-            {members.map((member) => (
-              <SelectPlayer
-                key={member.id}
-                onClick={() => handleSelect(member)}
-              >
-                {member.memberName}
-              </SelectPlayer>
-            ))}
-          </Players>
-          <InputBox>
-            <input
-              type="text"
-              placeholder="Type here..."
-              value={newUser}
-              onChange={(event) => setNewUser(event.target.value)}
-            />
-            <button
-              onClick={addNew}
-            >
-              add new member
-            </button>
-          </InputBox>
-        </>
-      )}
-      {mode === 'select' && (
-        <>
-          {isEditingName ? (
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2rem' }}>
-              <input
-                value={editNameValue}
-                onChange={(e) => setEditNameValue(e.target.value)}
-                style={{ padding: '0.5rem', marginRight: '0.5rem' }}
-              />
-              <button onClick={saveName} style={{ marginRight: '0.5rem' }}>Save</button>
-              <button onClick={cancelEditingName}>Cancel</button>
-            </div>
-          ) : (
-            <h1>
-              {`Hello, ${player.name}`}
-              <EditButton onClick={startEditingName}>Edit Name</EditButton>
-            </h1>
-          )}
-          {isHost && (
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-              <RevealCards onClick={() => handleReveal()} style={{ marginBottom: 0 }}>
-                {showCards ? "reset" : "Show Cards"}
-              </RevealCards>
-              <RevealCards onClick={() => handleEndGame()} style={{ borderColor: 'red', color: 'red', marginBottom: 0 }}>
-                End Game
-              </RevealCards>
-            </div>
-          )}
-          <CardsTable>
-            {
-              data.map(player => (
-                <CardWrapper
-                  key={player.id}
-                >
-                  {player.playerName}
-                  <Card
-                    picked={player.card}
+    <ThemeProvider theme={themeMode === 'light' ? lightTheme : darkTheme}>
+      <AppWrapper>
+        <ThemeToggleBtn onClick={toggleTheme}>
+          {themeMode === 'light' ? "🌙 Dark Mode" : "☀️ Light Mode"}
+        </ThemeToggleBtn>
+        <Container>
+          {mode === 'user' && (
+            <>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ opacity: hostId ? 0.5 : 1, color: themeMode === 'light' ? '#333' : 'magenta' }}>
+                  <input
+                    type="checkbox"
+                    checked={joinAsHost}
+                    disabled={!!hostId}
+                    onChange={(e) => setJoinAsHost(e.target.checked)}
+                  />
+                  {hostId ? " Host Already Active" : " Join as Host?"}
+                </label>
+              </div>
+              <Players>
+                {members.map((member) => (
+                  <SelectPlayer
+                    key={member.id}
+                    onClick={() => handleSelect(member)}
                   >
-                    {showCards ? player.card : "?"}
-                  </Card>
-                </CardWrapper>
-              ))
-            }
-          </CardsTable>
-          {/* Always show SizeSelection in 'select' mode now */}
-          <SizeSelection>
-            {
-              sizes.map(size => (
-                <SizeCard
-                  onClick={() => handlePick(size.label)}
-                  picked={size.label === player.card}
+                    {member.memberName}
+                  </SelectPlayer>
+                ))}
+              </Players>
+              <InputBox>
+                <input
+                  type="text"
+                  placeholder="Type here..."
+                  value={newUser}
+                  onChange={(event) => setNewUser(event.target.value)}
+                />
+                <button
+                  onClick={addNew}
                 >
-                  {size.label}
-                </SizeCard>
-              ))
-            }
-          </SizeSelection>
-          <LeaderboardContainer>
-            <h3>Top 5 Players 🏆</h3>
-            {members
-              .slice() // Copy array
-              .sort((a, b) => b.rank - a.rank) // Sort desc
-              .slice(0, 5) // Top 5
-              .map((member, index) => (
-                <RankRow key={member.id}>
-                  <span>#{index + 1} {member.memberName}</span>
-                  <span>{member.rank} pts</span>
-                </RankRow>
-              ))
-            }
-          </LeaderboardContainer>
+                  add new member
+                </button>
+              </InputBox>
+            </>
+          )}
+          {mode === 'select' && (
+            <>
+              {isEditingName ? (
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2rem' }}>
+                  <input
+                    value={editNameValue}
+                    onChange={(e) => setEditNameValue(e.target.value)}
+                    style={{ padding: '0.5rem', marginRight: '0.5rem' }}
+                  />
+                  <button onClick={saveName} style={{ marginRight: '0.5rem' }}>Save</button>
+                  <button onClick={cancelEditingName}>Cancel</button>
+                </div>
+              ) : (
+                <h1>
+                  {`Hello, ${player.name}`}
+                  <EditButton onClick={startEditingName}>Edit Name</EditButton>
+                </h1>
+              )}
+              {isHost && (
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                  <RevealCards onClick={() => handleReveal()} style={{ marginBottom: 0 }}>
+                    {showCards ? "reset" : "Show Cards"}
+                  </RevealCards>
+                  <RevealCards onClick={() => handleEndGame()} style={{ borderColor: 'red', color: 'red', marginBottom: 0 }}>
+                    End Game
+                  </RevealCards>
+                </div>
+              )}
+              <CardsTable>
+                {
+                  data.map(player => (
+                    <CardWrapper
+                      key={player.id}
+                    >
+                      {player.playerName}
+                      <Card
+                        picked={player.card}
+                      >
+                        {showCards ? player.card : "?"}
+                      </Card>
+                    </CardWrapper>
+                  ))
+                }
+              </CardsTable>
+              {/* Always show SizeSelection in 'select' mode now */}
+              <SizeSelection>
+                {
+                  sizes.map(size => (
+                    <SizeCard
+                      onClick={() => handlePick(size.label)}
+                      picked={size.label === player.card}
+                    >
+                      {size.label}
+                    </SizeCard>
+                  ))
+                }
+              </SizeSelection>
+              <LeaderboardContainer>
+                <h3>Top 5 Players 🏆</h3>
+                {members
+                  .slice() // Copy array
+                  .sort((a, b) => b.rank - a.rank) // Sort desc
+                  .slice(0, 5) // Top 5
+                  .map((member, index) => (
+                    <RankRow key={member.id}>
+                      <span>#{index + 1} {member.memberName}</span>
+                      <span>{member.rank} pts</span>
+                    </RankRow>
+                  ))
+                }
+              </LeaderboardContainer>
 
-        </>
-      )}
+            </>
+          )}
 
-    </Container>
+        </Container>
+      </AppWrapper>
+    </ThemeProvider>
   )
 };
