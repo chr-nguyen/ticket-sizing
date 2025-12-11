@@ -8,6 +8,7 @@ import {
   getDocs,
   getDoc,
   updateDoc,
+  deleteDoc,
   // serverTimestamp, // Not used in this snippet
   onSnapshot, // We will use this!
   query,
@@ -39,7 +40,7 @@ const pokerRoomRef = doc(db, 'room', 'poker'); // Reference to the specific docu
  * @param {string} memberName - The name of the room.
  * @returns {Promise<string>} The auto-generated unique ID of the new room.
  */
-export const createNewMember = async (memberName:string) => {
+export const createNewMember = async (memberName: string) => {
   try {
     const memberData = {
       memberName,
@@ -62,22 +63,31 @@ export const createNewMember = async (memberName:string) => {
  * 1. Fetches all members in organization.
  * @returns {members[]} all members and data.
  */
-export const fetchAllMembers = async () => {
-  try {
-    const querySnapshot = await getDocs(memberRef);
+/**
+ * Custom React Hook to listen for real-time updates to the 'members' collection.
+ * @returns {{ members: DocumentData[], loading: boolean }}
+ */
+export const useAllMembers = () => {
+  const [members, setMembers] = useState<DocumentData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    const members: DocumentData[] = []; // Explicitly type members array
-    querySnapshot.forEach((doc) => {
-      members.push({ id: doc.id, ...doc.data() });
+  useEffect(() => {
+    const unsubscribe = onSnapshot(memberRef, (snapshot) => {
+      const newMembers = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setMembers(newMembers);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching members:", error);
+      setLoading(false);
     });
 
-    console.log("Fetched members:", members);
-    return members;
+    return () => unsubscribe();
+  }, []);
 
-  } catch (error) {
-    console.error("Error fetching collection: ", error);
-    return []; // Return empty array on error
-  }
+  return { members, loading };
 }
 
 /**
@@ -86,11 +96,11 @@ export const fetchAllMembers = async () => {
  * @param {string} roomId - The ID of the room to update.
  * @param {string} playerName - The name of the player to add.
  */
-export const addPlayerToRoom = async ({player, id}:{player:string, id:string}) => {
+export const addPlayerToRoom = async ({ player, id }: { player: string, id: string }) => {
   const addPlayer = {
-      memberId: id,
-      playerName: player,
-      card: ""
+    memberId: id,
+    playerName: player,
+    card: ""
   };
 
   try {
@@ -125,7 +135,7 @@ export const fetchAllPlayers = () => {
   return { data, loading };
 };
 
-export const updatePlayerCardByMemberId = async ({memberId,newCardValue}:{memberId: string, newCardValue: string}): Promise<void> => {
+export const updatePlayerCardByMemberId = async ({ memberId, newCardValue }: { memberId: string, newCardValue: string }): Promise<void> => {
   try {
     const q = query(playerRef, where('memberId', '==', memberId));
 
@@ -189,6 +199,72 @@ export const togglePokerShowCards = async (): Promise<void> => {
       });
 
       console.log(`'room/poker/showCards' toggled to: ${newShowCardsState}`);
+
+      if (newShowCardsState === true) {
+        // --- SCORING LOGIC ---
+        const playersSnapshot = await getDocs(playerRef);
+        const players = playersSnapshot.docs.map(doc => doc.data());
+
+        const validPlayers = players.filter(p => p.card && p.card !== "");
+
+        if (validPlayers.length > 0) {
+          const cardValues: { [key: string]: number } = { "S": 1, "M": 2, "L": 3, "XL": 4 };
+          const numericValues = validPlayers.map(p => cardValues[p.card] || 0).filter(v => v > 0);
+
+          if (numericValues.length > 0) {
+            const sum = numericValues.reduce((a, b) => a + b, 0);
+            const mean = sum / numericValues.length;
+
+            console.log(`Calculating scores. Mean: ${mean}`);
+
+            const updatePromises: Promise<any>[] = [];
+
+            for (const player of validPlayers) {
+              const val = cardValues[player.card] || 0;
+              if (val > 0) {
+                // Score formula: 10 - (|Val - Mean| * 3)
+                // Max difference is 3 (1 vs 4) -> 10 - 9 = 1 point.
+                // Perfect match -> 10 points.
+                let score = Math.round(10 - (Math.abs(val - mean) * 3));
+                if (score < 1) score = 1; // Minimum 1 point for participating? Or just raw math.
+
+                console.log(`Player ${player.playerName} (Card: ${player.card}, Val: ${val}) gets ${score} points.`);
+
+                // Update Member Rank
+                // We need to find the member doc by memberId
+                const memberRefStr = doc(db, "members", player.memberId);
+                // We use increment from firestore to be safe with concurrent updates if needed, 
+                // though here it's batch processed by host. 
+                // But we need to import 'increment'. 
+                // For now, let's read-modify-write or assume simple update.
+                // Ideally: updateDoc(memberRefStr, { rank: increment(score) });
+                // Let's rely on reading the doc first to be safe or just standard update if increment isn't imported.
+                // I will add 'increment' to imports in a separate step or assume I can fetch-update.
+                // Let's try fetch-update for simplicity without changing imports blindly yet (or I can add it now).
+                // Actually, standard firebase has `increment`. I'll assume i need to add it to imports.
+                // I will just do a direct read-write here.
+                const memberSnap = await getDoc(memberRefStr);
+                if (memberSnap.exists()) {
+                  const currentRank = memberSnap.data().rank || 0;
+                  updatePromises.push(updateDoc(memberRefStr, { rank: currentRank + score }));
+                }
+              }
+            }
+            await Promise.all(updatePromises);
+            console.log("Scores updated.");
+          }
+        }
+      }
+
+      if (newShowCardsState === false) {
+        const playersSnapshot = await getDocs(playerRef);
+        const updatePromises = playersSnapshot.docs.map(playerDoc =>
+          updateDoc(playerDoc.ref, { card: "" })
+        );
+        await Promise.all(updatePromises);
+        console.log("All player cards reset to empty.");
+      }
+
     } else {
       await updateDoc(pokerRoomRef, {
         showCards: true // Default to true if the document didn't exist
@@ -207,10 +283,11 @@ export const togglePokerShowCards = async (): Promise<void> => {
 /**
  * Custom React Hook to listen for real-time updates to the 'showCards' state
  * in the 'room/poker' document.
- * @returns {{ showCards: boolean | undefined, loading: boolean }}
+ * @returns {{ showCards: boolean | undefined, hostId: string | null, loading: boolean }}
  */
 export const usePokerShowCardsState = () => {
   const [showCards, setShowCards] = useState<boolean | undefined>(undefined);
+  const [hostId, setHostId] = useState<string | null>(null);
   const [loadingCards, setLoading] = useState(true);
 
   useEffect(() => {
@@ -218,31 +295,50 @@ export const usePokerShowCardsState = () => {
     const unsubscribe = onSnapshot(pokerRoomRef, (docSnap) => {
       if (docSnap.exists()) {
         const currentData = docSnap.data() as DocumentData;
+
+        // Show Cards
         if (typeof currentData.showCards === 'boolean') {
           setShowCards(currentData.showCards);
         } else {
-          // Field might be missing or not a boolean, handle as undefined or a default
-          console.warn("'showCards' field found but is not a boolean or missing. Setting to undefined.");
           setShowCards(undefined);
         }
+
+        // Host ID
+        if (currentData.hostId) {
+          setHostId(currentData.hostId);
+        } else {
+          setHostId(null);
+        }
+
       } else {
-        // Document itself does not exist
-        console.log("Document 'room/poker' does not exist.");
         setShowCards(undefined);
+        setHostId(null);
       }
-      setLoading(false); // Data (or lack thereof) has been loaded
+      setLoading(false);
     }, (error) => {
       console.error("Error listening to 'room/poker' document:", error);
-      setShowCards(undefined); // Reset or set to error state
+      setShowCards(undefined);
+      setHostId(null);
       setLoading(false);
     });
 
-    // Cleanup the listener when the component unmounts
     return () => unsubscribe();
-  }, []); // Empty dependency array means this effect runs once on mount and cleans up on unmount
+  }, []);
 
-  return { showCards, loadingCards };
+  return { showCards, hostId, loadingCards };
 };
+
+export const setRoomHost = async (hostId: string | null) => {
+  try {
+    await updateDoc(pokerRoomRef, {
+      hostId: hostId
+    });
+    console.log(`Room host updated to: ${hostId}`);
+  } catch (error) {
+    console.error("Error setting room host:", error);
+    throw error;
+  }
+}
 
 // --- Example of how to use the new hook in a React component ---
 /*
@@ -268,7 +364,59 @@ function PokerTable() {
       </button>
 
       // ... other components or game logic
-    </div>
-  );
-}
-*/
+//     </div>
+//   );
+// }
+// */
+
+export const removeAllPlayers = async () => {
+  try {
+    const querySnapshot = await getDocs(playerRef);
+    const deletePromises = querySnapshot.docs.map((doc) => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+    console.log("All players removed.");
+
+    // Also reset the host
+    await setRoomHost(null);
+
+  } catch (error) {
+    console.error("Error removing players: ", error);
+    throw error;
+  }
+};
+
+export const updateMemberName = async (memberId: string, newName: string) => {
+  try {
+    const memberDocRef = doc(db, "members", memberId);
+    await updateDoc(memberDocRef, {
+      memberName: newName
+    });
+    console.log(`Member ${memberId} name updated to ${newName}`);
+  } catch (error) {
+    console.error("Error updating member name: ", error);
+    throw error;
+  }
+};
+
+export const updatePlayerNameByMemberId = async (memberId: string, newName: string) => {
+  try {
+    const q = query(playerRef, where('memberId', '==', memberId));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      console.warn(`No player found with memberId: ${memberId}`);
+      return;
+    }
+
+    const updatePromises = querySnapshot.docs.map(playerDoc =>
+      updateDoc(doc(db, 'players', playerDoc.id), { playerName: newName })
+    );
+
+    await Promise.all(updatePromises);
+    console.log(`Player(s) with memberId ${memberId} name updated to ${newName}`);
+
+  } catch (error) {
+    console.error("Error updating player name: ", error);
+    throw error;
+  }
+};
