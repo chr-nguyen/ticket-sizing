@@ -10,6 +10,7 @@ import {
     EndGameBtn,
     InputBox,
     ProfileContainer,
+    ProfileChoices,
 } from './styles';
 
 interface memberProps {
@@ -79,10 +80,12 @@ export const GameView: React.FC<GameViewProps> = ({
                                 onChange={(e) => setEditNameValue(e.target.value)}
                                 style={{ padding: '0.5rem', marginRight: '0.5rem' }}
                             />
-                            <button onClick={saveName} style={{ marginRight: '0.5rem' }}>
-                                Save
-                            </button>
-                            <button onClick={cancelEditingName}>Cancel</button>
+                            <ProfileChoices>
+                                <button onClick={saveName} style={{ marginRight: '0.5rem' }}>
+                                    Save
+                                </button>
+                                <button onClick={cancelEditingName}>Cancel</button>
+                            </ProfileChoices>
                         </InputBox>
                     </div>
                 ) : (
@@ -107,7 +110,7 @@ export const GameView: React.FC<GameViewProps> = ({
                 {data.map((p) => (
                     <CardWrapper key={p.id}>
                         {p.playerName}
-                        <Card $picked={p.card}>{showCards ? p.card : '?'}</Card>
+                        <Card $picked={p.card}>{showCards ? p.card ? p.card : "?" : '!'}</Card>
                     </CardWrapper>
                 ))}
             </CardsTable>

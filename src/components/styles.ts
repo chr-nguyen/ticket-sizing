@@ -137,6 +137,7 @@ export const InputBox = styled.div`
     border: 1px solid ${(props) => props.theme.border};
     background-color: ${(props) => props.theme.buttonBg};
     padding: 1rem;
+    width: 4rem;
     color: ${(props) => props.theme.buttonText};
     cursor: pointer;
     border-radius: 8px;
@@ -146,6 +147,11 @@ export const InputBox = styled.div`
       color: ${(props) => props.theme.buttonHoverText};
     }
   }
+`;
+
+export const ProfileChoices = styled.div`
+    display: flex;
+    gap: 0.5rem;
 `;
 
 export const CardsTable = styled.div`
@@ -224,6 +230,8 @@ export const RevealCards = styled.button`
   cursor: pointer;
   border-radius: 8px;
   font-weight: bold;
+  width: 6rem;
+  height: 4rem;
   &:hover {
     background-color: ${(props) => props.theme.buttonHoverBg};
     color: ${(props) => props.theme.buttonHoverText};
@@ -239,6 +247,8 @@ export const EndGameBtn = styled.button`
   cursor: pointer;
   border-radius: 8px;
   font-weight: bold;
+  width: 6rem;
+  height: 4rem;
   &:hover {
     background-color: ${(props) => props.theme.red};
     color: ${(props) => props.theme.buttonHoverText};
