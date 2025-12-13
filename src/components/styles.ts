@@ -277,6 +277,6 @@ export const ProfileContainer = styled.div`
   align-items: center;
   justify-content: center;
   position: absolute;
-  top: 2rem;
+  top: 3rem;
   right: 2rem;
 `;
