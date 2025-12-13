@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { initializeApp } from "firebase/app";
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
 import {
   getFirestore,
   collection,
@@ -9,30 +9,28 @@ import {
   getDoc,
   updateDoc,
   deleteDoc,
-  // serverTimestamp, // Not used in this snippet
-  onSnapshot, // We will use this!
+  onSnapshot,
   query,
   where,
-} from "firebase/firestore";
-import type { DocumentData } from "firebase/firestore";
+} from 'firebase/firestore';
+import type { DocumentData } from 'firebase/firestore';
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBBEIWt0qbvo13EEBogTWB2hnNI6qCbWb0",
-  authDomain: "tshirt-sizing.firebaseapp.com",
-  projectId: "tshirt-sizing",
-  storageBucket: "tshirt-sizing.firebasestorage.app",
-  messagingSenderId: "490373345352",
-  appId: "1:490373345352:web:d29b7048bd397af78b287d"
+  apiKey: 'AIzaSyBBEIWt0qbvo13EEBogTWB2hnNI6qCbWb0',
+  authDomain: 'tshirt-sizing.firebaseapp.com',
+  projectId: 'tshirt-sizing',
+  storageBucket: 'tshirt-sizing.firebasestorage.app',
+  messagingSenderId: '490373345352',
+  appId: '1:490373345352:web:d29b7048bd397af78b287d',
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const memberRef = collection(db, "members");
-const playerRef = collection(db, "players");
-const pokerRoomRef = doc(db, 'room', 'poker'); // Reference to the specific document
+const memberRef = collection(db, 'members');
+const playerRef = collection(db, 'players');
+const pokerRoomRef = doc(db, 'room', 'poker');
 
 /**
  * 1. Creates a new member to the organization.
@@ -47,15 +45,15 @@ export const createNewMember = async (memberName: string) => {
       under: 0,
       over: 0,
       rank: 0,
-      theme: 'dark' // Default theme
+      theme: 'dark',
     };
 
     const docRef = await addDoc(memberRef, memberData);
 
-    console.log("New member created with ID: ", docRef.id);
+    console.log('New member created with ID: ', docRef.id);
     return docRef.id;
   } catch (error) {
-    console.error("Error creating new member: ", error);
+    console.error('Error creating new member: ', error);
     throw error;
   }
 };
@@ -63,15 +61,21 @@ export const createNewMember = async (memberName: string) => {
 /**
  * Updates the member's theme preference.
  */
-export const updateMemberTheme = async (memberId: string, theme: 'light' | 'dark') => {
+export const updateMemberTheme = async ({
+  memberId,
+  theme,
+}: {
+  memberId: string;
+  theme: 'light' | 'dark';
+}) => {
   try {
-    const memberDocRef = doc(db, "members", memberId);
+    const memberDocRef = doc(db, 'members', memberId);
     await updateDoc(memberDocRef, {
-      theme: theme
+      theme: theme,
     });
     console.log(`Member ${memberId} theme updated to ${theme}`);
   } catch (error) {
-    console.error("Error updating member theme: ", error);
+    console.error('Error updating member theme: ', error);
     throw error;
   }
 };
@@ -89,23 +93,27 @@ export const useAllMembers = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(memberRef, (snapshot) => {
-      const newMembers = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setMembers(newMembers);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching members:", error);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      memberRef,
+      (snapshot) => {
+        const newMembers = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setMembers(newMembers);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error fetching members:', error);
+        setLoading(false);
+      },
+    );
 
     return () => unsubscribe();
   }, []);
 
   return { members, loading };
-}
+};
 
 /**
  * Adds a new player to the 'players' array of a specific room document.
@@ -113,46 +121,56 @@ export const useAllMembers = () => {
  * @param {string} roomId - The ID of the room to update.
  * @param {string} playerName - The name of the player to add.
  */
-export const addPlayerToRoom = async ({ player, id }: { player: string, id: string }) => {
+export const addPlayerToRoom = async ({
+  player,
+  id,
+}: {
+  player: string;
+  id: string;
+}) => {
   const addPlayer = {
     memberId: id,
     playerName: player,
-    card: ""
+    card: '',
   };
 
   try {
     const docRef = await addDoc(playerRef, addPlayer);
-    console.log("New member created with ID: ", docRef.id);
+    console.log('New member created with ID: ', docRef.id);
     return docRef.id;
-
   } catch (error) {
-    console.error("Failed to add player to the room.", error);
-    throw error; // Re-throw for consistent error handling
+    console.error('Failed to add player to the room.', error);
+    throw error;
   }
 };
 
 export const fetchAllPlayers = () => {
-  const [data, setData] = useState<DocumentData[]>([]); // Explicitly type useState
+  const [data, setData] = useState<DocumentData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-
     const unsubscribe = onSnapshot(playerRef, (snapshot) => {
-      const newData = snapshot.docs.map(doc => ({
+      const newData = snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
       setData(newData);
       setLoading(false);
     });
 
     return unsubscribe;
-  }, []); // Depend on nothing if db and 'players' are constants
+  }, []);
 
   return { data, loading };
 };
 
-export const updatePlayerCardByMemberId = async ({ memberId, newCardValue }: { memberId: string, newCardValue: string }): Promise<void> => {
+export const updatePlayerCardByMemberId = async ({
+  memberId,
+  newCardValue,
+}: {
+  memberId: string;
+  newCardValue: string;
+}): Promise<void> => {
   try {
     const q = query(playerRef, where('memberId', '==', memberId));
 
@@ -167,18 +185,20 @@ export const updatePlayerCardByMemberId = async ({ memberId, newCardValue }: { m
     const playerDocRef = doc(db, 'players', playerDoc.id);
 
     await updateDoc(playerDocRef, {
-      card: newCardValue
+      card: newCardValue,
     });
 
     console.log(`Player with memberId ${memberId} card updated successfully!`);
   } catch (error) {
-    console.error("Error updating player card:", error);
+    console.error('Error updating player card:', error);
     throw error;
   }
-}
+};
 
 // CORRECTED: Added 'async' keyword
-export const getPokerShowCardsState = async (): Promise<boolean | undefined> => {
+export const getPokerShowCardsState = async (): Promise<
+  boolean | undefined
+> => {
   try {
     const docSnap = await getDoc(pokerRoomRef);
 
@@ -187,7 +207,9 @@ export const getPokerShowCardsState = async (): Promise<boolean | undefined> => 
       if (typeof currentData.showCards === 'boolean') {
         return currentData.showCards;
       } else {
-        console.warn("'showCards' field found but is not a boolean. Returning undefined.");
+        console.warn(
+          "'showCards' field found but is not a boolean. Returning undefined.",
+        );
         return undefined;
       }
     } else {
@@ -198,7 +220,7 @@ export const getPokerShowCardsState = async (): Promise<boolean | undefined> => 
     console.error("Error getting 'room/poker/showCards' state:", error);
     throw error;
   }
-}
+};
 
 // CORRECTED: Added 'async' keyword
 export const togglePokerShowCards = async (): Promise<void> => {
@@ -212,7 +234,7 @@ export const togglePokerShowCards = async (): Promise<void> => {
       const newShowCardsState = !currentShowCardsState;
 
       await updateDoc(pokerRoomRef, {
-        showCards: newShowCardsState
+        showCards: newShowCardsState,
       });
 
       console.log(`'room/poker/showCards' toggled to: ${newShowCardsState}`);
@@ -220,13 +242,20 @@ export const togglePokerShowCards = async (): Promise<void> => {
       if (newShowCardsState === true) {
         // --- SCORING LOGIC ---
         const playersSnapshot = await getDocs(playerRef);
-        const players = playersSnapshot.docs.map(doc => doc.data());
+        const players = playersSnapshot.docs.map((doc) => doc.data());
 
-        const validPlayers = players.filter(p => p.card && p.card !== "");
+        const validPlayers = players.filter((p) => p.card && p.card !== '');
 
         if (validPlayers.length > 0) {
-          const cardValues: { [key: string]: number } = { "S": 1, "M": 2, "L": 3, "XL": 4 };
-          const numericValues = validPlayers.map(p => cardValues[p.card] || 0).filter(v => v > 0);
+          const cardValues: { [key: string]: number } = {
+            S: 1,
+            M: 2,
+            L: 3,
+            XL: 4,
+          };
+          const numericValues = validPlayers
+            .map((p) => cardValues[p.card] || 0)
+            .filter((v) => v > 0);
 
           if (numericValues.length > 0) {
             const sum = numericValues.reduce((a, b) => a + b, 0);
@@ -242,17 +271,19 @@ export const togglePokerShowCards = async (): Promise<void> => {
                 // Score formula: 10 - (|Val - Mean| * 3)
                 // Max difference is 3 (1 vs 4) -> 10 - 9 = 1 point.
                 // Perfect match -> 10 points.
-                let score = Math.round(10 - (Math.abs(val - mean) * 3));
+                let score = Math.round(10 - Math.abs(val - mean) * 3);
                 if (score < 1) score = 1; // Minimum 1 point for participating? Or just raw math.
 
-                console.log(`Player ${player.playerName} (Card: ${player.card}, Val: ${val}) gets ${score} points.`);
+                console.log(
+                  `Player ${player.playerName} (Card: ${player.card}, Val: ${val}) gets ${score} points.`,
+                );
 
                 // Update Member Rank
                 // We need to find the member doc by memberId
-                const memberRefStr = doc(db, "members", player.memberId);
-                // We use increment from firestore to be safe with concurrent updates if needed, 
-                // though here it's batch processed by host. 
-                // But we need to import 'increment'. 
+                const memberRefStr = doc(db, 'members', player.memberId);
+                // We use increment from firestore to be safe with concurrent updates if needed,
+                // though here it's batch processed by host.
+                // But we need to import 'increment'.
                 // For now, let's read-modify-write or assume simple update.
                 // Ideally: updateDoc(memberRefStr, { rank: increment(score) });
                 // Let's rely on reading the doc first to be safe or just standard update if increment isn't imported.
@@ -263,28 +294,29 @@ export const togglePokerShowCards = async (): Promise<void> => {
                 const memberSnap = await getDoc(memberRefStr);
                 if (memberSnap.exists()) {
                   const currentRank = memberSnap.data().rank || 0;
-                  updatePromises.push(updateDoc(memberRefStr, { rank: currentRank + score }));
+                  updatePromises.push(
+                    updateDoc(memberRefStr, { rank: currentRank + score }),
+                  );
                 }
               }
             }
             await Promise.all(updatePromises);
-            console.log("Scores updated.");
+            console.log('Scores updated.');
           }
         }
       }
 
       if (newShowCardsState === false) {
         const playersSnapshot = await getDocs(playerRef);
-        const updatePromises = playersSnapshot.docs.map(playerDoc =>
-          updateDoc(playerDoc.ref, { card: "" })
+        const updatePromises = playersSnapshot.docs.map((playerDoc) =>
+          updateDoc(playerDoc.ref, { card: '' }),
         );
         await Promise.all(updatePromises);
-        console.log("All player cards reset to empty.");
+        console.log('All player cards reset to empty.');
       }
-
     } else {
       await updateDoc(pokerRoomRef, {
-        showCards: true // Default to true if the document didn't exist
+        showCards: true, // Default to true if the document didn't exist
       });
       console.log(`'room/poker' document created and 'showCards' set to true.`);
     }
@@ -292,8 +324,7 @@ export const togglePokerShowCards = async (): Promise<void> => {
     console.error("Error toggling 'room/poker/showCards':", error);
     throw error;
   }
-}
-
+};
 
 // --- NEW REAL-TIME LISTENER FUNCTION ---
 
@@ -309,35 +340,38 @@ export const usePokerShowCardsState = () => {
 
   useEffect(() => {
     // Set up the real-time listener
-    const unsubscribe = onSnapshot(pokerRoomRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const currentData = docSnap.data() as DocumentData;
+    const unsubscribe = onSnapshot(
+      pokerRoomRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const currentData = docSnap.data() as DocumentData;
 
-        // Show Cards
-        if (typeof currentData.showCards === 'boolean') {
-          setShowCards(currentData.showCards);
+          // Show Cards
+          if (typeof currentData.showCards === 'boolean') {
+            setShowCards(currentData.showCards);
+          } else {
+            setShowCards(undefined);
+          }
+
+          // Host ID
+          if (currentData.hostId) {
+            setHostId(currentData.hostId);
+          } else {
+            setHostId(null);
+          }
         } else {
           setShowCards(undefined);
-        }
-
-        // Host ID
-        if (currentData.hostId) {
-          setHostId(currentData.hostId);
-        } else {
           setHostId(null);
         }
-
-      } else {
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error listening to 'room/poker' document:", error);
         setShowCards(undefined);
         setHostId(null);
-      }
-      setLoading(false);
-    }, (error) => {
-      console.error("Error listening to 'room/poker' document:", error);
-      setShowCards(undefined);
-      setHostId(null);
-      setLoading(false);
-    });
+        setLoading(false);
+      },
+    );
 
     return () => unsubscribe();
   }, []);
@@ -348,74 +382,47 @@ export const usePokerShowCardsState = () => {
 export const setRoomHost = async (hostId: string | null) => {
   try {
     await updateDoc(pokerRoomRef, {
-      hostId: hostId
+      hostId: hostId,
     });
     console.log(`Room host updated to: ${hostId}`);
   } catch (error) {
-    console.error("Error setting room host:", error);
+    console.error('Error setting room host:', error);
     throw error;
   }
-}
-
-// --- Example of how to use the new hook in a React component ---
-/*
-// Inside a React component (e.g., in App.tsx or a PokerRoom component)
-function PokerTable() {
-  const { showCards, loading } = usePokerShowCardsState();
-
-  if (loading) {
-    return <p>Loading poker room state...</p>;
-  }
-
-  return (
-    <div>
-      <h1>Poker Room</h1>
-      {showCards !== undefined ? (
-        <p>Cards are currently: {showCards ? "Visible" : "Hidden"}</p>
-      ) : (
-        <p>Poker room state not available or 'showCards' is not a boolean.</p>
-      )}
-
-      <button onClick={togglePokerShowCards}>
-        Toggle Show Cards
-      </button>
-
-      // ... other components or game logic
-//     </div>
-//   );
-// }
-// */
+};
 
 export const removeAllPlayers = async () => {
   try {
     const querySnapshot = await getDocs(playerRef);
     const deletePromises = querySnapshot.docs.map((doc) => deleteDoc(doc.ref));
     await Promise.all(deletePromises);
-    console.log("All players removed.");
+    console.log('All players removed.');
 
     // Also reset the host
     await setRoomHost(null);
-
   } catch (error) {
-    console.error("Error removing players: ", error);
+    console.error('Error removing players: ', error);
     throw error;
   }
 };
 
 export const updateMemberName = async (memberId: string, newName: string) => {
   try {
-    const memberDocRef = doc(db, "members", memberId);
+    const memberDocRef = doc(db, 'members', memberId);
     await updateDoc(memberDocRef, {
-      memberName: newName
+      memberName: newName,
     });
     console.log(`Member ${memberId} name updated to ${newName}`);
   } catch (error) {
-    console.error("Error updating member name: ", error);
+    console.error('Error updating member name: ', error);
     throw error;
   }
 };
 
-export const updatePlayerNameByMemberId = async (memberId: string, newName: string) => {
+export const updatePlayerNameByMemberId = async (
+  memberId: string,
+  newName: string,
+) => {
   try {
     const q = query(playerRef, where('memberId', '==', memberId));
     const querySnapshot = await getDocs(q);
@@ -425,15 +432,16 @@ export const updatePlayerNameByMemberId = async (memberId: string, newName: stri
       return;
     }
 
-    const updatePromises = querySnapshot.docs.map(playerDoc =>
-      updateDoc(doc(db, 'players', playerDoc.id), { playerName: newName })
+    const updatePromises = querySnapshot.docs.map((playerDoc) =>
+      updateDoc(doc(db, 'players', playerDoc.id), { playerName: newName }),
     );
 
     await Promise.all(updatePromises);
-    console.log(`Player(s) with memberId ${memberId} name updated to ${newName}`);
-
+    console.log(
+      `Player(s) with memberId ${memberId} name updated to ${newName}`,
+    );
   } catch (error) {
-    console.error("Error updating player name: ", error);
+    console.error('Error updating player name: ', error);
     throw error;
   }
 };
