@@ -16,12 +16,12 @@ import {
 import type { DocumentData } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBBEIWt0qbvo13EEBogTWB2hnNI6qCbWb0',
-  authDomain: 'tshirt-sizing.firebaseapp.com',
-  projectId: 'tshirt-sizing',
-  storageBucket: 'tshirt-sizing.firebasestorage.app',
-  messagingSenderId: '490373345352',
-  appId: '1:490373345352:web:d29b7048bd397af78b287d',
+  apiKey: import.meta.env.PUBLIC_FIREBASE_API_KEY,
+  authDomain: import.meta.env.PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.PUBLIC_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase
