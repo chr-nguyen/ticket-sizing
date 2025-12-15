@@ -12,6 +12,7 @@ interface memberProps {
 }
 
 interface LoginViewProps {
+    organizationName: string;
     members: memberProps[];
     joinAsHost: boolean;
     setJoinAsHost: (value: boolean) => void;
@@ -24,6 +25,7 @@ interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
+    organizationName,
     members,
     joinAsHost,
     setJoinAsHost,
@@ -36,6 +38,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 }) => {
     return (
         <>
+            <h1>{organizationName}</h1>
             <div style={{ marginBottom: '1rem' }}>
                 <label
                     style={{

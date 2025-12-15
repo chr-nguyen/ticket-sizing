@@ -2,31 +2,31 @@ import styled from 'styled-components';
 
 // --- THEMES ---
 export const darkTheme = {
-    background: 'darkblue',
-    text: 'magenta',
-    border: 'magenta',
-    cardBg: 'darkblue', // Or slightly lighter
-    accent: 'magenta',
-    white: 'white',
-    buttonBg: 'darkblue',
-    buttonText: 'magenta',
-    buttonHoverBg: 'magenta',
-    buttonHoverText: 'darkblue',
-    red: 'red',
+  background: 'darkblue',
+  text: 'magenta',
+  border: 'magenta',
+  cardBg: 'darkblue', // Or slightly lighter
+  accent: 'magenta',
+  white: 'white',
+  buttonBg: 'darkblue',
+  buttonText: 'magenta',
+  buttonHoverBg: 'magenta',
+  buttonHoverText: 'darkblue',
+  red: 'red',
 };
 
 export const lightTheme = {
-    background: '#f0f2f5',
-    text: '#6200ea', // Deep Purple
-    border: '#6200ea',
-    cardBg: 'white',
-    accent: '#6200ea',
-    white: '#333', // Text color replacement
-    buttonBg: 'white',
-    buttonText: '#6200ea',
-    buttonHoverBg: '#6200ea',
-    buttonHoverText: 'white',
-    red: 'red',
+  background: '#f0f2f5',
+  text: '#6200ea', // Deep Purple
+  border: '#6200ea',
+  cardBg: 'white',
+  accent: '#6200ea',
+  white: '#333', // Text color replacement
+  buttonBg: 'white',
+  buttonText: '#6200ea',
+  buttonHoverBg: '#6200ea',
+  buttonHoverText: 'white',
+  red: 'red',
 };
 
 // --- STYLED COMPONENTS ---
@@ -182,9 +182,9 @@ export const Card = styled.div<{ $picked: string }>`
   align-items: center;
   font-size: 3rem;
   background-color: ${(props) =>
-        props.$picked ? props.theme.accent : props.theme.cardBg};
+    props.$picked ? props.theme.accent : props.theme.cardBg};
   color: ${(props) =>
-        props.$picked ? props.theme.buttonHoverText : props.theme.text};
+    props.$picked ? props.theme.buttonHoverText : props.theme.text};
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transition: all 0.3s;
 `;
@@ -209,9 +209,9 @@ export const SizeCard = styled.button<{ $picked: boolean }>`
   font-weight: bold;
 
   color: ${(props) =>
-        props.$picked ? props.theme.buttonHoverText : props.theme.text};
+    props.$picked ? props.theme.buttonHoverText : props.theme.text};
   background-color: ${(props) =>
-        props.$picked ? props.theme.accent : props.theme.buttonBg};
+    props.$picked ? props.theme.accent : props.theme.buttonBg};
 
   &:hover {
     background-color: ${(props) => props.theme.accent};
@@ -279,4 +279,52 @@ export const ProfileContainer = styled.div`
   position: absolute;
   top: 3rem;
   right: 2rem;
+`;
+
+export const PasswordBox = styled.div`
+  margin-top: 2rem;
+  padding: 1rem;
+  border: 1px solid ${(props) => props.theme.border};
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  input {
+    border: 1px solid ${(props) => props.theme.border};
+    color: ${(props) => props.theme.text};
+    background-color: ${(props) => props.theme.cardBg};
+    padding: 1rem;
+    border-radius: 8px;
+  }
+  button {
+    margin-top: 1rem;
+    border: 1px solid ${(props) => props.theme.border};
+    background-color: ${(props) => props.theme.buttonBg};
+    padding: 1rem;
+    width: 4rem;
+    color: ${(props) => props.theme.buttonText};
+    cursor: pointer;
+    border-radius: 8px;
+    font-weight: bold;
+    &:hover {
+      background-color: ${(props) => props.theme.buttonHoverBg};
+      color: ${(props) => props.theme.buttonHoverText};
+    }
+  }
+`;
+
+export const NewOrgButton = styled.button`
+  margin-top: 1rem;
+  border: 1px solid ${(props) => props.theme.border};
+  background-color: ${(props) => props.theme.buttonBg};
+  padding: 1rem;
+  color: ${(props) => props.theme.buttonText};
+  cursor: pointer;
+  border-radius: 8px;
+  font-weight: bold;
+  &:hover {
+    background-color: ${(props) => props.theme.buttonHoverBg};
+    color: ${(props) => props.theme.buttonHoverText};
+  }
 `;
