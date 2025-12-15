@@ -5,6 +5,7 @@ import {
   collection,
   doc,
   addDoc,
+  setDoc,
   getDocs,
   getDoc,
   updateDoc,
@@ -30,18 +31,73 @@ const db = getFirestore(app);
 
 const memberRef = collection(db, 'members');
 const playerRef = collection(db, 'players');
-const pokerRoomRef = doc(db, 'room', 'poker');
+const organizationRef = collection(db, 'organizations');
+// We no longer use a static pokerRoomRef, it is dynamic based on orgId
+
+// --- ORGANIZATION LOGIC ---
+
+export const createOrganization = async (name: string, password: string) => {
+  try {
+    const docRef = await addDoc(organizationRef, {
+      name,
+      password
+    });
+    console.log('New organization created with ID: ', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating organization: ', error);
+    throw error;
+  }
+}
+
+export const checkOrganizationPassword = async (orgId: string, passwordAttempt: string) => {
+  try {
+    const orgDoc = await getDoc(doc(db, 'organizations', orgId));
+    if (orgDoc.exists()) {
+      const data = orgDoc.data();
+      return data.password === passwordAttempt;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error verifying password", error);
+    return false;
+  }
+}
+
+export const fetchAllOrganizations = () => {
+  const [orgs, setOrgs] = useState<DocumentData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(organizationRef, (snapshot) => {
+      const newOrgs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setOrgs(newOrgs);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  return { orgs, loading };
+}
+
+
+// --- MEMBER LOGIC ---
 
 /**
  * 1. Creates a new member to the organization.
  * 2. Uses addDoc() to get an automatic, unique member ID.
- * @param {string} memberName - The name of the room.
+ * @param {string} memberName - The name of the member.
+ * @param {string} organizationId - The ID of the organization.
  * @returns {Promise<string>} The auto-generated unique ID of the new room.
  */
-export const createNewMember = async (memberName: string) => {
+export const createNewMember = async (memberName: string, organizationId: string) => {
   try {
     const memberData = {
       memberName,
+      organizationId,
       under: 0,
       over: 0,
       rank: 0,
@@ -81,20 +137,24 @@ export const updateMemberTheme = async ({
 };
 
 /**
- * 1. Fetches all members in organization.
- * @returns {members[]} all members and data.
- */
-/**
- * Custom React Hook to listen for real-time updates to the 'members' collection.
+ * Custom React Hook to listen for real-time updates to the 'members' collection, filtered by Org ID.
  * @returns {{ members: DocumentData[], loading: boolean }}
  */
-export const useAllMembers = () => {
+export const useAllMembers = (organizationId: string | null) => {
   const [members, setMembers] = useState<DocumentData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!organizationId) {
+      setMembers([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(memberRef, where("organizationId", "==", organizationId));
+
     const unsubscribe = onSnapshot(
-      memberRef,
+      q,
       (snapshot) => {
         const newMembers = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -110,33 +170,35 @@ export const useAllMembers = () => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [organizationId]);
 
   return { members, loading };
 };
 
+// --- PLAYER LOGIC ---
+
 /**
- * Adds a new player to the 'players' array of a specific room document.
- * The new player's 'cardSelect' is initialized as an empty string ("").
- * @param {string} roomId - The ID of the room to update.
- * @param {string} playerName - The name of the player to add.
+ * Adds a new player to the 'players' collection.
  */
 export const addPlayerToRoom = async ({
   player,
   id,
+  organizationId
 }: {
   player: string;
   id: string;
+  organizationId: string;
 }) => {
   const addPlayer = {
     memberId: id,
+    organizationId,
     playerName: player,
     card: '',
   };
 
   try {
     const docRef = await addDoc(playerRef, addPlayer);
-    console.log('New member created with ID: ', docRef.id);
+    console.log('New player added with ID: ', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Failed to add player to the room.', error);
@@ -144,12 +206,20 @@ export const addPlayerToRoom = async ({
   }
 };
 
-export const fetchAllPlayers = () => {
+export const fetchAllPlayers = (organizationId: string | null) => {
   const [data, setData] = useState<DocumentData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(playerRef, (snapshot) => {
+    if (!organizationId) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
+    const q = query(playerRef, where("organizationId", "==", organizationId));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const newData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -159,7 +229,7 @@ export const fetchAllPlayers = () => {
     });
 
     return unsubscribe;
-  }, []);
+  }, [organizationId]);
 
   return { data, loading };
 };
@@ -172,6 +242,8 @@ export const updatePlayerCardByMemberId = async ({
   newCardValue: string;
 }): Promise<void> => {
   try {
+    // Note: memberId should be unique enough, but technically we could check orgId too if members span orgs (which they do now)
+    // But memberId is unique global ID from createNewMember, so it is safe to query just by memberId.
     const q = query(playerRef, where('memberId', '==', memberId));
 
     const querySnapshot = await getDocs(q);
@@ -195,63 +267,64 @@ export const updatePlayerCardByMemberId = async ({
   }
 };
 
-// CORRECTED: Added 'async' keyword
-export const getPokerShowCardsState = async (): Promise<
+
+// --- POKER ROOM STATE LOGIC ---
+
+// Helper to get ref for specific org
+const getPokerRoomRef = (organizationId: string) => doc(db, 'pokerState', organizationId);
+
+
+export const getPokerShowCardsState = async (organizationId: string): Promise<
   boolean | undefined
 > => {
   try {
-    const docSnap = await getDoc(pokerRoomRef);
+    const docSnap = await getDoc(getPokerRoomRef(organizationId));
 
     if (docSnap.exists()) {
       const currentData = docSnap.data() as DocumentData;
       if (typeof currentData.showCards === 'boolean') {
         return currentData.showCards;
       } else {
-        console.warn(
-          "'showCards' field found but is not a boolean. Returning undefined.",
-        );
         return undefined;
       }
     } else {
-      console.log("Document 'room/poker' does not exist.");
       return undefined;
     }
   } catch (error) {
-    console.error("Error getting 'room/poker/showCards' state:", error);
+    console.error("Error getting poker showCards state:", error);
     throw error;
   }
 };
 
-// CORRECTED: Added 'async' keyword
-export const togglePokerShowCards = async (): Promise<void> => {
+
+export const togglePokerShowCards = async (organizationId: string): Promise<void> => {
   try {
-    const docSnap = await getDoc(pokerRoomRef);
+    const roomRef = getPokerRoomRef(organizationId);
+    const docSnap = await getDoc(roomRef);
 
     if (docSnap.exists()) {
       const currentData = docSnap.data();
       const currentShowCardsState = currentData?.showCards ?? false;
-
       const newShowCardsState = !currentShowCardsState;
 
-      await updateDoc(pokerRoomRef, {
+      await updateDoc(roomRef, {
         showCards: newShowCardsState,
       });
 
-      console.log(`'room/poker/showCards' toggled to: ${newShowCardsState}`);
+      console.log(`Poker showCards toggled to: ${newShowCardsState} for org ${organizationId}`);
 
       if (newShowCardsState === true) {
         // --- SCORING LOGIC ---
-        const playersSnapshot = await getDocs(playerRef);
+        // Fetch players ONLY for this organization
+        const q = query(playerRef, where("organizationId", "==", organizationId));
+        const playersSnapshot = await getDocs(q);
         const players = playersSnapshot.docs.map((doc) => doc.data());
 
         const validPlayers = players.filter((p) => p.card && p.card !== '');
 
         if (validPlayers.length > 0) {
           const cardValues: { [key: string]: number } = {
-            S: 1,
-            M: 2,
-            L: 3,
-            XL: 4,
+            S: 1, M: 2, L: 3, XL: 4,
           };
           const numericValues = validPlayers
             .map((p) => cardValues[p.card] || 0)
@@ -261,36 +334,16 @@ export const togglePokerShowCards = async (): Promise<void> => {
             const sum = numericValues.reduce((a, b) => a + b, 0);
             const mean = sum / numericValues.length;
 
-            console.log(`Calculating scores. Mean: ${mean}`);
-
             const updatePromises: Promise<any>[] = [];
 
             for (const player of validPlayers) {
               const val = cardValues[player.card] || 0;
               if (val > 0) {
-                // Score formula: 10 - (|Val - Mean| * 3)
-                // Max difference is 3 (1 vs 4) -> 10 - 9 = 1 point.
-                // Perfect match -> 10 points.
                 let score = Math.round(10 - Math.abs(val - mean) * 3);
-                if (score < 1) score = 1; // Minimum 1 point for participating? Or just raw math.
-
-                console.log(
-                  `Player ${player.playerName} (Card: ${player.card}, Val: ${val}) gets ${score} points.`,
-                );
+                if (score < 1) score = 1;
 
                 // Update Member Rank
-                // We need to find the member doc by memberId
                 const memberRefStr = doc(db, 'members', player.memberId);
-                // We use increment from firestore to be safe with concurrent updates if needed,
-                // though here it's batch processed by host.
-                // But we need to import 'increment'.
-                // For now, let's read-modify-write or assume simple update.
-                // Ideally: updateDoc(memberRefStr, { rank: increment(score) });
-                // Let's rely on reading the doc first to be safe or just standard update if increment isn't imported.
-                // I will add 'increment' to imports in a separate step or assume I can fetch-update.
-                // Let's try fetch-update for simplicity without changing imports blindly yet (or I can add it now).
-                // Actually, standard firebase has `increment`. I'll assume i need to add it to imports.
-                // I will just do a direct read-write here.
                 const memberSnap = await getDoc(memberRefStr);
                 if (memberSnap.exists()) {
                   const currentRank = memberSnap.data().rank || 0;
@@ -301,64 +354,51 @@ export const togglePokerShowCards = async (): Promise<void> => {
               }
             }
             await Promise.all(updatePromises);
-            console.log('Scores updated.');
           }
         }
       }
 
       if (newShowCardsState === false) {
-        const playersSnapshot = await getDocs(playerRef);
+        // Reset cards for THIS org only
+        const q = query(playerRef, where("organizationId", "==", organizationId));
+        const playersSnapshot = await getDocs(q);
         const updatePromises = playersSnapshot.docs.map((playerDoc) =>
           updateDoc(playerDoc.ref, { card: '' }),
         );
         await Promise.all(updatePromises);
-        console.log('All player cards reset to empty.');
+        console.log('All player cards reset to empty for org.');
       }
     } else {
-      await updateDoc(pokerRoomRef, {
-        showCards: true, // Default to true if the document didn't exist
+      // Create if doesn't exist
+      await setDoc(roomRef, {
+        showCards: true,
       });
-      console.log(`'room/poker' document created and 'showCards' set to true.`);
     }
   } catch (error) {
-    console.error("Error toggling 'room/poker/showCards':", error);
+    console.error("Error toggling poker state:", error);
     throw error;
   }
 };
 
-// --- NEW REAL-TIME LISTENER FUNCTION ---
 
-/**
- * Custom React Hook to listen for real-time updates to the 'showCards' state
- * in the 'room/poker' document.
- * @returns {{ showCards: boolean | undefined, hostId: string | null, loading: boolean }}
- */
-export const usePokerShowCardsState = () => {
+export const usePokerShowCardsState = (organizationId: string | null) => {
   const [showCards, setShowCards] = useState<boolean | undefined>(undefined);
   const [hostId, setHostId] = useState<string | null>(null);
   const [loadingCards, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up the real-time listener
+    if (!organizationId) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onSnapshot(
-      pokerRoomRef,
+      getPokerRoomRef(organizationId),
       (docSnap) => {
         if (docSnap.exists()) {
           const currentData = docSnap.data() as DocumentData;
-
-          // Show Cards
-          if (typeof currentData.showCards === 'boolean') {
-            setShowCards(currentData.showCards);
-          } else {
-            setShowCards(undefined);
-          }
-
-          // Host ID
-          if (currentData.hostId) {
-            setHostId(currentData.hostId);
-          } else {
-            setHostId(null);
-          }
+          setShowCards(currentData.showCards === undefined ? undefined : currentData.showCards);
+          setHostId(currentData.hostId || null);
         } else {
           setShowCards(undefined);
           setHostId(null);
@@ -366,7 +406,7 @@ export const usePokerShowCardsState = () => {
         setLoading(false);
       },
       (error) => {
-        console.error("Error listening to 'room/poker' document:", error);
+        console.error("Error listening to poker state:", error);
         setShowCards(undefined);
         setHostId(null);
         setLoading(false);
@@ -374,32 +414,36 @@ export const usePokerShowCardsState = () => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [organizationId]);
 
   return { showCards, hostId, loadingCards };
 };
 
-export const setRoomHost = async (hostId: string | null) => {
+export const setRoomHost = async (hostId: string | null, organizationId: string) => {
   try {
-    await updateDoc(pokerRoomRef, {
-      hostId: hostId,
-    });
+    const roomRef = getPokerRoomRef(organizationId);
+    // Use setDoc with merge: true to effectively upsert without overwriting other fields like showCards
+    // requires setDoc import which we added
+    await setDoc(roomRef, { hostId }, { merge: true });
     console.log(`Room host updated to: ${hostId}`);
+
   } catch (error) {
     console.error('Error setting room host:', error);
     throw error;
   }
 };
 
-export const removeAllPlayers = async () => {
+export const removeAllPlayers = async (organizationId: string) => {
   try {
-    const querySnapshot = await getDocs(playerRef);
+    const q = query(playerRef, where("organizationId", "==", organizationId));
+    const querySnapshot = await getDocs(q);
     const deletePromises = querySnapshot.docs.map((doc) => deleteDoc(doc.ref));
     await Promise.all(deletePromises);
-    console.log('All players removed.');
+    console.log('All players removed for org.');
 
     // Also reset the host
-    await setRoomHost(null);
+    // We need to implement setRoomHost properly with orgId
+    await setRoomHost(null, organizationId);
   } catch (error) {
     console.error('Error removing players: ', error);
     throw error;
@@ -445,3 +489,4 @@ export const updatePlayerNameByMemberId = async (
     throw error;
   }
 };
+

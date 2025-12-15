@@ -13,6 +13,9 @@ import {
   updatePlayerNameByMemberId,
   useAllMembers,
   setRoomHost,
+  fetchAllOrganizations,
+  createOrganization,
+  checkOrganizationPassword
 } from '../firebase/firebase.ts';
 import { ThemeProvider } from 'styled-components';
 import {
@@ -24,6 +27,7 @@ import {
 } from './styles';
 import { LoginView } from './LoginView';
 import { GameView } from './GameView';
+import { OrganizationView } from './OrganizationView';
 
 interface memberProps {
   id: string;
@@ -35,7 +39,33 @@ interface memberProps {
 }
 
 export const Sizing = () => {
-  const { members: allMembers } = useAllMembers();
+  // --- ORGANIZATION STATE ---
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [organizationName, setOrganizationName] = useState<string>('');
+
+  const { orgs, loading: loadingOrgs } = fetchAllOrganizations();
+
+  const handleCreateOrg = async (name: string, password: string) => {
+    const newId = await createOrganization(name, password);
+    setOrganizationId(newId);
+    setOrganizationName(name);
+  };
+
+  const handleJoinOrg = async (orgId: string, passwordAttempt: string) => {
+    const isValid = await checkOrganizationPassword(orgId, passwordAttempt);
+    if (isValid) {
+      setOrganizationId(orgId);
+      // Find name for local state
+      const org = orgs.find(o => o.id === orgId);
+      if (org) setOrganizationName(org.name);
+      return true;
+    }
+    return false;
+  };
+
+
+  // --- APP STATE (Scoped by Organization) ---
+  const { members: allMembers } = useAllMembers(organizationId);
   const members = allMembers as memberProps[];
 
   const [newUser, setNewUser] = useState<string>();
@@ -51,30 +81,33 @@ export const Sizing = () => {
   });
 
   // Destructure hostId from hook
-  const { showCards, hostId } = usePokerShowCardsState();
+  const { showCards, hostId } = usePokerShowCardsState(organizationId);
 
   const addNew = async () => {
-    if (!newUser || !newUser.trim()) return;
+    if (!newUser || !newUser.trim() || !organizationId) return;
 
     console.log('Adding new member:', newUser);
-    await createNewMember(newUser);
+    await createNewMember(newUser, organizationId);
 
     setNewUser('');
     // No need to manually fetch, hook updates automatically
   };
 
   const handleSelect = async (member: memberProps) => {
+    if (!organizationId) return;
+
     setPlayer({ ...player, name: member.memberName, memberId: member.id });
     console.log(member);
     await addPlayerToRoom({
       id: member.id,
       player: member.memberName,
+      organizationId
     });
 
     if (joinAsHost) {
       // Try to claim host
       if (!hostId) {
-        await setRoomHost(member.id);
+        await setRoomHost(member.id, organizationId);
         setIsHost(true);
       } else {
         console.warn('Host already taken!');
@@ -85,7 +118,7 @@ export const Sizing = () => {
     setMode('select');
   };
 
-  const { data, loading: loadingPlayers } = fetchAllPlayers();
+  const { data, loading: loadingPlayers } = fetchAllPlayers(organizationId);
 
   // Effect to handle game end / removal from room
   useEffect(() => {
@@ -141,14 +174,16 @@ export const Sizing = () => {
   }, [data, player.memberId, player.card]);
 
   const handleReveal = () => {
-    togglePokerShowCards();
+    if (organizationId) togglePokerShowCards(organizationId);
   };
 
   const handleEndGame = () => {
-    removeAllPlayers();
-    setRoomHost(null);
-    setIsHost(false);
-    setMode('user');
+    if (organizationId) {
+      removeAllPlayers(organizationId);
+      // setRoomHost(null, organizationId); // Handled inside removeAllPlayers now
+      setIsHost(false);
+      setMode('user');
+    }
   };
 
   const startEditingName = () => {
@@ -203,37 +238,51 @@ export const Sizing = () => {
           {themeMode === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
         </ThemeToggleBtn>
         <Container>
-          {mode === 'user' && (
-            <LoginView
-              members={members}
-              joinAsHost={joinAsHost}
-              setJoinAsHost={setJoinAsHost}
-              hostId={hostId}
-              handleSelect={handleSelect}
-              newUser={newUser}
-              setNewUser={setNewUser}
-              addNew={addNew}
+          {!organizationId ? (
+            <OrganizationView
+              organizations={orgs}
+              handleJoin={handleJoinOrg}
+              handleCreate={handleCreateOrg}
+              loading={loadingOrgs}
               themeMode={themeMode}
             />
-          )}
-          {mode === 'select' && (
-            <GameView
-              player={player}
-              isEditingName={isEditingName}
-              editNameValue={editNameValue}
-              setEditNameValue={setEditNameValue}
-              saveName={saveName}
-              cancelEditingName={cancelEditingName}
-              startEditingName={startEditingName}
-              isHost={isHost}
-              showCards={!!showCards}
-              handleReveal={handleReveal}
-              handleEndGame={handleEndGame}
-              data={data}
-              sizes={sizes}
-              handlePick={handlePick}
-              members={members}
-            />
+          ) : (
+            <>
+              {/* Optional: Header with Org Name? */}
+              {mode === 'user' && (
+                <LoginView
+                  organizationName={organizationName}
+                  members={members}
+                  joinAsHost={joinAsHost}
+                  setJoinAsHost={setJoinAsHost}
+                  hostId={hostId}
+                  handleSelect={handleSelect}
+                  newUser={newUser}
+                  setNewUser={setNewUser}
+                  addNew={addNew}
+                  themeMode={themeMode}
+                />
+              )}
+              {mode === 'select' && (
+                <GameView
+                  player={player}
+                  isEditingName={isEditingName}
+                  editNameValue={editNameValue}
+                  setEditNameValue={setEditNameValue}
+                  saveName={saveName}
+                  cancelEditingName={cancelEditingName}
+                  startEditingName={startEditingName}
+                  isHost={isHost}
+                  showCards={!!showCards}
+                  handleReveal={handleReveal}
+                  handleEndGame={handleEndGame}
+                  data={data}
+                  sizes={sizes}
+                  handlePick={handlePick}
+                  members={members}
+                />
+              )}
+            </>
           )}
         </Container>
       </AppWrapper>
