@@ -189,15 +189,29 @@ export const addPlayerToRoom = async ({
   id: string;
   organizationId: string;
 }) => {
-  const addPlayer = {
-    memberId: id,
-    organizationId,
-    playerName: player,
-    card: '',
-  };
-
   try {
-    const docRef = await addDoc(playerRef, addPlayer);
+    // Check for existing players with this memberId in this organization to prevent duplicates
+    const q = query(
+      playerRef,
+      where('memberId', '==', id),
+      where('organizationId', '==', organizationId)
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      const deletePromises = querySnapshot.docs.map((docSnap) => deleteDoc(docSnap.ref));
+      await Promise.all(deletePromises);
+      console.log(`Removed ${querySnapshot.size} duplicate player(s) for member ${id}`);
+    }
+
+    const addPlayerObj = {
+      memberId: id,
+      organizationId,
+      playerName: player,
+      card: '',
+    };
+
+    const docRef = await addDoc(playerRef, addPlayerObj);
     console.log('New player added with ID: ', docRef.id);
     return docRef.id;
   } catch (error) {
@@ -324,8 +338,10 @@ export const togglePokerShowCards = async (organizationId: string): Promise<void
 
         if (validPlayers.length > 0) {
           const cardValues: { [key: string]: number } = {
-            S: 1, M: 2, L: 3, XL: 4,
+            XS: 1, S: 2, M: 3, L: 4, XL: 5, '?': 0,
           };
+
+          // Filter out the '?' cards (value 0) from the scoring mechanism
           const numericValues = validPlayers
             .map((p) => cardValues[p.card] || 0)
             .filter((v) => v > 0);
@@ -338,6 +354,7 @@ export const togglePokerShowCards = async (organizationId: string): Promise<void
 
             for (const player of validPlayers) {
               const val = cardValues[player.card] || 0;
+              // Ignore players with a '?' card or those with 0 value
               if (val > 0) {
                 let score = Math.round(10 - Math.abs(val - mean) * 3);
                 if (score < 1) score = 1;

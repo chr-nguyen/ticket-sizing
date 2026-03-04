@@ -137,21 +137,29 @@ export const Sizing = () => {
 
   const sizes = [
     {
-      label: 'S',
-      value: 1,
+      label: 'XS',
+      value: 1
     },
     {
-      label: 'M',
+      label: 'S',
       value: 2,
     },
     {
-      label: 'L',
+      label: 'M',
       value: 3,
     },
     {
-      label: 'XL',
+      label: 'L',
       value: 4,
     },
+    {
+      label: 'XL',
+      value: 5,
+    },
+    {
+      label: '?',
+      value: 0
+    }
   ];
 
   const handlePick = (pick: string) => {

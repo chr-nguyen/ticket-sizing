@@ -110,7 +110,7 @@ export const GameView: React.FC<GameViewProps> = ({
                 {data.map((p) => (
                     <CardWrapper key={p.id}>
                         {p.playerName}
-                        <Card $picked={p.card}>{showCards ? p.card ? p.card : "?" : '!'}</Card>
+                        <Card $picked={p.card}>{showCards ? p.card ? p.card : " " : '!'}</Card>
                     </CardWrapper>
                 ))}
             </CardsTable>
